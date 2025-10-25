@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# React Native
+ios/Pods/
+ios/build/
+android/build/
+android/app/build/
+
+# Large files
+*.zip
+*.rar
+*.tar.gz
+*.7z
+
+# OS files
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
