@@ -1,173 +1,314 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
+  Dimensions,
+  Animated,
   Image,
+  ImageBackground,
 } from 'react-native';
 import { Text } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { useSelector } from 'react-redux';
 import { colors, spacing, borderRadius, shadows, typography } from '../../config/theme';
-import { stores } from '../../data/storeData';
-import { getPopularItems } from '../../data/menuData';
+
+const { width, height } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }) => {
-  const [selectedStore, setSelectedStore] = useState(stores[0]);
-  const popularItems = getPopularItems();
+  const user = useSelector((state) => state.auth?.user);
+  const location = useSelector((state) => state.location?.currentLocation);
+  const [imageError, setImageError] = React.useState({});
+  const [showTabs, setShowTabs] = React.useState(false);
+  const buttonFloat = useRef(new Animated.Value(0)).current;
+  const tabBarTranslateY = useRef(new Animated.Value(100)).current;
 
-  const quickActions = [
-    { id: 1, icon: 'cafe-outline', label: 'Browse Menu', action: () => navigation.navigate('Menu') },
-    { id: 2, icon: 'gift-outline', label: 'Offers', action: () => {} },
-    { id: 3, icon: 'time-outline', label: 'Recent Orders', action: () => navigation.navigate('My Orders') },
-    { id: 4, icon: 'heart-outline', label: 'Favorites', action: () => {} },
+  // Floating button animation
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(buttonFloat, {
+          toValue: -10,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(buttonFloat, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+  
+  // Get nearest store based on location
+const getStoreName = () => {
+  if (!location) return 'TRUE BLACK';
+  
+  const { latitude, longitude, area, city } = location;
+  
+  // Kompally area
+  if (latitude >= 17.54 && latitude <= 17.56 && longitude >= 78.48 && longitude <= 78.50) {
+    return 'Travertine';
+  }
+  // Banjara Hills
+  else if (latitude >= 17.41 && latitude <= 17.43 && longitude >= 78.46 && longitude <= 78.48) {
+    return 'Burnt Earth';
+  }
+  // Jubilee Hills
+  else if (latitude >= 17.42 && latitude <= 17.44 && longitude >= 78.39 && longitude <= 78.41) {
+    return 'Modern Beige';
+  }
+  // Fallback: use area or city name
+  else if (area) {
+    return ` ${area}`;
+  }
+  else if (city) {
+    return ` ${city}`;
+  }
+  else {
+    return 'Hyderabad';
+  }
+};
+const handleScroll = (event) => {
+  const scrollY = event.nativeEvent.contentOffset.y;
+  
+  // Show tabs when scrolled past hero (about 80% of screen height)
+  if (scrollY > height * 0.2) {
+    if (!showTabs) {
+      setShowTabs(true);
+      // Trigger smooth slide-up animation
+      if (global.setTabsVisible) {
+        global.setTabsVisible(true);
+      }
+    }
+  } else {
+    if (showTabs) {
+      setShowTabs(false);
+      // Trigger smooth slide-down animation
+      if (global.setTabsVisible) {
+        global.setTabsVisible(false);
+      }
+    }
+  }
+};
+  const orderAgainItems = [
+    { id: 1, name: 'Latte Hot', price: 250 },
+    { id: 2, name: 'Red Pepper Hummus Toast', price: 250 },
   ];
+
+  const marketplaceItems = [
+    { id: 1, name: 'Roasted Coffee 250g', price: 550 },
+    { id: 2, name: 'Drip Coffee Kit', price: 850 },
+  ];
+
+  // Image getters with error handling
+  const getLogo = () => {
+    try {
+      return require('../../assets/images/logo.png');
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const getHeroImage = () => {
+    try {
+      return require('../../assets/images/hero1.jpg');
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const getTiramisuImage = () => {
+    try {
+      return require('../../assets/images/tiramisu.jpg');
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const getItemImage = () => {
+    try {
+      return require('../../assets/images/item-default.jpg');
+    } catch (e) {
+      return null;
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Good Morning ☀️</Text>
-            <Text style={styles.userName}>Welcome back!</Text>
-          </View>
-          <TouchableOpacity style={styles.notificationButton}>
-            <Icon name="notifications-outline" size={24} color={colors.textPrimary} />
-            <View style={styles.notificationBadge} />
-          </TouchableOpacity>
-        </View>
+    <View style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}
+      onScroll={handleScroll} scrollEventThrottle={16}>
+        
+        {/* Hero Section with Background Image */}
+        <View style={styles.heroSection}>
+          {getHeroImage() && !imageError.hero ? (
+            <ImageBackground
+              source={getHeroImage()}
+              style={styles.heroBackground}
+              resizeMode="cover"
+              onError={() => setImageError({ ...imageError, hero: true })}
+            >
+              {/* Overlay for better text visibility */}
+              <View style={styles.heroOverlay} />
+              
+              {/* Logo on top of hero */}
+              <View style={styles.logoContainer}>
+                {getLogo() && !imageError.logo ? (
+                  <Image
+                    source={getLogo()}
+                    style={styles.logoImage}
+                    resizeMode="contain"
+                    onError={() => setImageError({ ...imageError, logo: true })}
+                  />
+                ) : (
+                  <View style={styles.logoTextContainer}>
+                    <Text style={styles.logoMain}>TRUE BLACK</Text>
+                    <Text style={styles.logoSub}>SPECIALITY COFFEE</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.storeNameContainer}>
+              <Text style={styles.storeName}>{getStoreName()}</Text>
+              </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Location Card */}
-          <View style={styles.locationCard}>
-            <View style={styles.locationInfo}>
-              <Icon name="location" size={24} color={colors.primary} />
-              <View style={styles.locationText}>
-                <Text style={styles.locationLabel}>Delivering to</Text>
-                <Text style={styles.locationName}>{selectedStore.location}</Text>
+              {/* Start Order Button */}
+              <Animated.View style={[styles.startButtonContainer, { transform: [{ translateY: buttonFloat }] }]}>
+                <TouchableOpacity
+               style={styles.startButton}
+              onPress={() => {
+              // Show tabs before navigating
+               if (global.setTabsVisible) {
+              global.setTabsVisible(true);
+            }
+             navigation.navigate('Menu');
+             }}
+            activeOpacity={0.8}
+              >
+                  <Text style={styles.startButtonText}>START YOUR ORDER</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </ImageBackground>
+          ) : (
+            <View style={styles.heroPlaceholder}>
+              <Text style={styles.heroPlaceholderText}>☕</Text>
+              <View style={styles.logoContainer}>
+                <Text style={styles.logoMain}>TRUE BLACK</Text>
+                <Text style={styles.logoSub}>SPECIALITY COFFEE</Text>
               </View>
             </View>
-            <TouchableOpacity>
-              <Icon name="chevron-forward" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
+          )}
+        </View>
 
-          {/* Quick Actions */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.quickActionsGrid}>
-              {quickActions.map((action) => (
-                <TouchableOpacity
-                  key={action.id}
-                  style={styles.quickActionCard}
-                  onPress={action.action}
-                >
-                  <View style={styles.quickActionIcon}>
-                    <Icon name={action.icon} size={28} color={colors.primary} />
-                  </View>
-                  <Text style={styles.quickActionLabel}>{action.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+        {/* Tiramisu Promotional Banner */}
+        <TouchableOpacity style={styles.promoSectionFull} activeOpacity={0.9}>
+  {getTiramisuImage() && !imageError.tiramisu ? (
+    <Image
+      source={getTiramisuImage()}
+      style={styles.promoImage}
+      resizeMode="cover"
+      onError={() => setImageError({ ...imageError, tiramisu: true })}
+    />
+  ) : (
+    <View style={{ backgroundColor: colors.accentBeige, flex: 1 }} />
+  )}
+  <View style={styles.promoOverlay} />
+  <View style={styles.promoContent}>
+    <Text style={[styles.promoTitle, { color: colors.textLight }]}>TIRAMISU</Text>
+    <Text style={[styles.promoSubtitle, { color: colors.textLight }]}>LIMITED BATCH—WEEKENDS ONLY</Text>
+  </View>
+</TouchableOpacity>
 
-          {/* Banner */}
-          <View style={styles.banner}>
-            <View style={styles.bannerContent}>
-              <Text style={styles.bannerTitle}>☕ First Order?</Text>
-              <Text style={styles.bannerSubtitle}>Get 20% off on your first order!</Text>
-              <TouchableOpacity style={styles.bannerButton}>
-                <Text style={styles.bannerButtonText}>Order Now</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Popular Items */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Popular Items</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Menu')}>
-                <Text style={styles.seeAllText}>See All →</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.popularItemsScroll}
-            >
-              {popularItems.slice(0, 5).map((item, index) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.popularItemCard}
-                  onPress={() => navigation.navigate('Menu')}
-                >
-                  <View style={[styles.popularItemImage, { backgroundColor: getCardColor(index) }]}>
-                    <Text style={styles.popularItemEmoji}>{getCategoryEmoji(item.category)}</Text>
-                  </View>
-                  <Text style={styles.popularItemName} numberOfLines={2}>
+        {/* Order Again Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>ORDER AGAIN</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalScroll}
+          >
+            {orderAgainItems.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.itemButton}
+                onPress={() => navigation.navigate('ItemDetail', { item })}
+                activeOpacity={0.9}
+              >
+                <View style={styles.itemImageContainer}>
+                  {getItemImage() && !imageError.itemDefault ? (
+                    <Image
+                      source={getItemImage()}
+                      style={styles.itemImage}
+                      resizeMode="cover"
+                      onError={() => setImageError({ ...imageError, itemDefault: true })}
+                    />
+                  ) : (
+                    <View style={styles.itemImagePlaceholder}>
+                      <Text style={styles.itemImageText}>
+                        {item.name.includes('Latte') ? '☕' : '🍞'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName} numberOfLines={2}>
                     {item.name}
                   </Text>
-                  <Text style={styles.popularItemPrice}>₹{item.price}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Our Stores */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Our Stores</Text>
-            {stores.map((store) => (
-              <TouchableOpacity
-                key={store.id}
-                style={styles.storeCard}
-                onPress={() => setSelectedStore(store)}
-              >
-                <View style={styles.storeIcon}>
-                  <Icon name="storefront-outline" size={24} color={colors.primary} />
+                  <Text style={styles.itemPrice}>₹{item.price}</Text>
                 </View>
-                <View style={styles.storeInfo}>
-                  <Text style={styles.storeName}>{store.name}</Text>
-                  <Text style={styles.storeAddress}>{store.address}</Text>
-                  <View style={styles.storeDetails}>
-                    <Icon name="location-outline" size={14} color={colors.textSecondary} />
-                    <Text style={styles.storeDistance}>{store.distance}</Text>
-                  </View>
-                </View>
-                <Icon name="chevron-forward" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             ))}
-          </View>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+          </ScrollView>
+        </View>
+
+        {/* Marketplace Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>MARKETPLACE</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalScroll}
+          >
+            {marketplaceItems.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.itemButton}
+                onPress={() => navigation.navigate('ItemDetail', { item })}
+                activeOpacity={0.9}
+              >
+                <View style={styles.itemImageContainer}>
+                  {getItemImage() && !imageError.itemDefault ? (
+                    <Image
+                      source={getItemImage()}
+                      style={styles.itemImage}
+                      resizeMode="cover"
+                      onError={() => setImageError({ ...imageError, itemDefault: true })}
+                    />
+                  ) : (
+                    <View style={styles.itemImagePlaceholder}>
+                      <Text style={styles.itemImageText}>
+                        {item.name.includes('Coffee') ? '🫘' : '☕'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.itemPrice}>₹{item.price}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    </View>
   );
-};
-
-const getCardColor = (index) => {
-  const colors_arr = [
-    colors.orange,
-    colors.pink,
-    colors.lightBlue,
-    colors.lightGreen,
-    colors.orange,
-  ];
-  return colors_arr[index % colors_arr.length];
-};
-
-const getCategoryEmoji = (category) => {
-  const emojiMap = {
-    'Toasts': '🍞',
-    'Sandwiches': '🥪',
-    'Bowls': '🥗',
-    'Burgers': '🍔',
-    'Beverages': '☕',
-    'Desserts': '🍰',
-  };
-  return emojiMap[category] || '🍽️';
 };
 
 const styles = StyleSheet.create({
@@ -178,221 +319,193 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  greeting: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  notificationButton: {
+  heroSection: {
+    width: width,
+    height: height, // Full screen height
     position: 'relative',
-    padding: spacing.sm,
   },
-  notificationBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.error,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
-  },
-  locationCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.lg,
-    ...shadows.small,
-  },
-  locationInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  locationText: {
-    marginLeft: spacing.md,
-  },
-  locationLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 2,
-  },
-  locationName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  section: {
-    marginBottom: spacing.xl,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  seeAllText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  quickActionCard: {
-    width: '47%',
-    backgroundColor: colors.surface,
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-    ...shadows.small,
-  },
-  quickActionIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  quickActionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  banner: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    marginBottom: spacing.xl,
-    ...shadows.medium,
-  },
-  bannerContent: {
-    alignItems: 'flex-start',
-  },
-  bannerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.white,
-    marginBottom: spacing.xs,
-  },
-  bannerSubtitle: {
-    fontSize: 14,
-    color: colors.white,
-    opacity: 0.9,
-    marginBottom: spacing.lg,
-  },
-  bannerButton: {
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-  },
-  bannerButtonText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  popularItemsScroll: {
-    gap: spacing.md,
-  },
-  popularItemCard: {
-    width: 140,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    ...shadows.small,
-  },
-  popularItemImage: {
+  heroBackground: {
     width: '100%',
-    height: 120,
-    borderTopLeftRadius: borderRadius.lg,
-    borderTopRightRadius: borderRadius.lg,
+    height: '100%',
+    justifyContent: 'space-between',
+  },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)', // Subtle dark overlay for text readability
+  },
+  heroPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.accentCream,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  popularItemEmoji: {
-    fontSize: 40,
+  heroPlaceholderText: {
+    fontSize: 120,
+    marginBottom: spacing.xxxl,
   },
-  popularItemName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    padding: spacing.sm,
-    height: 40,
+  logoContainer: {
+    alignItems: 'center',
+    marginTop: spacing.xxxl * 2,
+    zIndex: 10,
   },
-  popularItemPrice: {
-    fontSize: 14,
+  logoImage: {
+    width: 220,
+    height: 70,
+    tintColor: colors.textLight, // Makes logo white on dark background
+  },
+  logoTextContainer: {
+    alignItems: 'center',
+  },
+  logoMain: {
+    fontSize: 36,
+    fontFamily: 'System',
     fontWeight: '700',
-    color: colors.primary,
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
+    color: colors.textLight,
+    letterSpacing: 3,
+    marginBottom: spacing.xs,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
-  storeCard: {
-    flexDirection: 'row',
+  logoSub: {
+    fontSize: 12,
+    fontFamily: 'System',
+    fontWeight: '400',
+    color: colors.textLight,
+    letterSpacing: 4,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  storeNameContainer: {
+    position: 'absolute',
+    top: 130,  
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.md,
-    ...shadows.small,
-  },
-  storeIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  storeInfo: {
-    flex: 1,
+    paddingHorizontal: spacing.xl,
+    zIndex: 10,
   },
   storeName: {
+    fontSize: 12,
+    fontFamily: 'Montserrat-SemiBold',
+    color: colors.textLight,
+    letterSpacing: 1,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  startButtonContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.xxxl * 3,
+    zIndex: 10,
+  },
+  startButton: {
+    paddingHorizontal: spacing.xxxl * 1.5,
+    paddingVertical: spacing.lg,
+    borderWidth: 2,
+    borderColor: colors.textLight,
+    borderRadius: borderRadius.round,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backdropFilter: 'blur(10px)',
+  },
+  startButtonText: {
+    ...typography.button,
+    color: colors.textLight,
     fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 4,
   },
-  storeAddress: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 6,
+  promoSectionFull: {
+    width: width,
+    height: 400,
+    marginTop: 0,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  storeDetails: {
-    flexDirection: 'row',
+  promoContent: {
+    position: 'absolute',
+    left: spacing.xl,
+    top: spacing.xl,
+    zIndex: 10,
+  },
+  promoTitle: {
+    ...typography.h1,
+    marginBottom: spacing.xs,
+  },
+  promoSubtitle: {
+    ...typography.caption,
+    letterSpacing: 1,
+  },
+  promoImageContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  promoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  promoImageText: {
+    fontSize: 80,
+  },
+  promoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  section: {
+    marginTop: spacing.xxxl,
+  },
+  sectionTitle: {
+    ...typography.h3,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    letterSpacing: 1,
+  },
+  horizontalScroll: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.lg,
+  },
+  itemButton: {
+    width: width * 0.45,
+    overflow: 'hidden',
+  },
+  itemImageContainer: {
+    width: '100%',
+    height: width * 0.45,
+    backgroundColor: colors.accentCream,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  itemImage: {
+    width: '100%',
+    height: '100%',
+  },
+  itemImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  storeDistance: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginLeft: 4,
+  itemImageText: {
+    fontSize: 60,
+  },
+  itemInfo: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 0,
+  },
+  itemName: {
+    ...typography.body1,
+    fontFamily: 'Montserrat-SemiBold',
+    marginBottom: spacing.xs,
+    minHeight: 44,
+  },
+  itemPrice: {
+    ...typography.price,
+  },
+  bottomSpacing: {
+    height: spacing.xxxxl * 2,
   },
 });
 

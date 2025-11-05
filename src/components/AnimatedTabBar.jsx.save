@@ -1,0 +1,127 @@
+import React, { useEffect, useRef } from 'react';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text } from 'react-native-paper';
+import * as Animatable from 'react-native-animatable';
+import Icon from 'react-native-vector-icons/Ionicons';
+import { colors, spacing, typography } from '../config/theme';
+
+const AnimatedTabBar = ({ state, descriptors, navigation, visible }) => {
+  const tabBarRef = useRef(null);
+
+  useEffect(() => {
+    if (visible) {
+      tabBarRef.current?.slideInUp(400);
+    } else {
+      tabBarRef.current?.slideOutDown(400);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Animatable.View
+      ref={tabBarRef}
+      style={styles.tabBar}
+      animation={visible ? 'slideInUp' : 'slideOutDown'}
+      duration={400}
+      useNativeDriver
+    >
+      {state.routes.map((route, index) => {
+        const { options } = descriptors[route.key];
+        const label = options.tabBarLabel || route.name;
+        const isFocused = state.index === index;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+
+        // Get icon name based on route
+        const getIconName = () => {
+          switch (route.name) {
+            case 'Home':
+              return isFocused ? 'home' : 'home-outline';
+            case 'Menu':
+              return isFocused ? 'grid' : 'grid-outline';
+            case 'Spaces':
+              return isFocused ? 'location' : 'location-outline';
+            case 'Search':
+              return isFocused ? 'search' : 'search-outline';
+            case 'Profile':
+              return isFocused ? 'person' : 'person-outline';
+            default:
+              return 'circle-outline';
+          }
+        };
+
+        return (
+          <TouchableOpacity
+            key={route.key}
+            onPress={onPress}
+            style={styles.tabButton}
+            activeOpacity={0.7}
+          >
+            <Icon
+              name={getIconName()}
+              size={24}
+              color={isFocused ? colors.primary : colors.textSecondary}
+              style={styles.icon}
+            />
+            <Text
+              style={[
+                styles.label,
+                { color: isFocused ? colors.primary : colors.textSecondary },
+              ]}
+            >
+              {label.toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </Animatable.View>
+  );
+};
+
+const styles = StyleSheet.create({
+  tabBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    height: 90,
+    paddingBottom: 12,
+    paddingTop: 8,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icon: {
+    marginTop: 4,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 4,
+    fontFamily: 'Montserrat-SemiBold',
+  },
+});
+
+export default AnimatedTabBar;

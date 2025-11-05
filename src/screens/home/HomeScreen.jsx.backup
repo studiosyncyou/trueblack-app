@@ -1,0 +1,422 @@
+import React, { useRef, useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+  Dimensions,
+  Animated,
+  Image,
+} from 'react-native';
+import { Text } from 'react-native-paper';
+import { useSelector } from 'react-redux';
+import { colors, spacing, borderRadius, shadows, typography } from '../../config/theme';
+
+const { width } = Dimensions.get('window');
+
+const HomeScreen = ({ navigation }) => {
+  const user = useSelector((state) => state.auth?.user);
+  const [imageError, setImageError] = React.useState({});
+  const buttonFloat = useRef(new Animated.Value(0)).current;
+
+  // Floating button animation
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(buttonFloat, {
+          toValue: -10,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(buttonFloat, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const orderAgainItems = [
+    { id: 1, name: 'Latte Hot', price: 250 },
+    { id: 2, name: 'Red Pepper Hummus Toast', price: 250 },
+  ];
+
+  const marketplaceItems = [
+    { id: 1, name: 'Roasted Coffee 250g', price: 550 },
+    { id: 2, name: 'Drip Coffee Kit', price: 850 },
+  ];
+
+  // Image getters with error handling
+  const getLogo = () => {
+    try {
+      return require('../../assets/images/logo.png');
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const getHeroImage = () => {
+    try {
+      return require('../../assets/images/hero1.jpg');
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const getTiramisuImage = () => {
+    try {
+      return require('../../assets/images/tiramisu.jpg');
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const getItemImage = () => {
+    try {
+      return require('../../assets/images/item-default.jpg');
+    } catch (e) {
+      return null;
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        
+        {/* Hero Section */}
+        <View style={styles.heroSection}>
+          {/* Logo Image */}
+          <View style={styles.logoContainer}>
+            {getLogo() && !imageError.logo ? (
+              <Image
+                source={getLogo()}
+                style={styles.logoImage}
+                resizeMode="contain"
+                onError={() => setImageError({ ...imageError, logo: true })}
+              />
+            ) : (
+              <View>
+                <Text style={styles.logoMain}>TRUE BLACK</Text>
+                <Text style={styles.logoSub}>SPECIALITY COFFEE</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Greeting */}
+          <Text style={styles.greeting}>HELLO</Text>
+          <Text style={styles.userName}>{user?.name || 'Guest'}</Text>
+
+          {/* Hero Image */}
+          <View style={styles.heroImageContainer}>
+            {getHeroImage() && !imageError.hero ? (
+              <Image
+                source={getHeroImage()}
+                style={styles.heroImage}
+                resizeMode="cover"
+                onError={() => setImageError({ ...imageError, hero: true })}
+              />
+            ) : (
+              <View style={styles.heroImagePlaceholder}>
+                <Text style={styles.heroImageText}>☕</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Start Order Button */}
+          <Animated.View style={[styles.startButtonContainer, { transform: [{ translateY: buttonFloat }] }]}>
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={() => navigation.navigate('Menu')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.startButtonText}>START YOUR ORDER</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+
+        {/* Tiramisu Promotional Banner */}
+        <TouchableOpacity style={styles.promoSection} activeOpacity={0.9}>
+          <View style={styles.promoContent}>
+            <Text style={styles.promoTitle}>TIRAMISU</Text>
+            <Text style={styles.promoSubtitle}>LIMITED BATCH—WEEKENDS ONLY</Text>
+          </View>
+          <View style={styles.promoImageContainer}>
+            {getTiramisuImage() && !imageError.tiramisu ? (
+              <Image
+                source={getTiramisuImage()}
+                style={styles.promoImage}
+                resizeMode="cover"
+                onError={() => setImageError({ ...imageError, tiramisu: true })}
+              />
+            ) : (
+              <Text style={styles.promoImageText}>🍰</Text>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* Order Again Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>ORDER AGAIN</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalScroll}
+          >
+            {orderAgainItems.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.itemCard}
+                onPress={() => navigation.navigate('ItemDetail', { item })}
+                activeOpacity={0.9}
+              >
+                <View style={styles.itemImageContainer}>
+                  {getItemImage() && !imageError.itemDefault ? (
+                    <Image
+                      source={getItemImage()}
+                      style={styles.itemImage}
+                      resizeMode="cover"
+                      onError={() => setImageError({ ...imageError, itemDefault: true })}
+                    />
+                  ) : (
+                    <View style={styles.itemImagePlaceholder}>
+                      <Text style={styles.itemImageText}>
+                        {item.name.includes('Latte') ? '☕' : '🍞'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.itemPrice}>₹{item.price}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Marketplace Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>MARKETPLACE</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalScroll}
+          >
+            {marketplaceItems.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.itemCard}
+                onPress={() => navigation.navigate('ItemDetail', { item })}
+                activeOpacity={0.9}
+              >
+                <View style={styles.itemImageContainer}>
+                  {getItemImage() && !imageError.itemDefault ? (
+                    <Image
+                      source={getItemImage()}
+                      style={styles.itemImage}
+                      resizeMode="cover"
+                      onError={() => setImageError({ ...imageError, itemDefault: true })}
+                    />
+                  ) : (
+                    <View style={styles.itemImagePlaceholder}>
+                      <Text style={styles.itemImageText}>
+                        {item.name.includes('Coffee') ? '🫘' : '☕'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.itemPrice}>₹{item.price}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  container: {
+    flex: 1,
+  },
+  heroSection: {
+    height: width * 1.4,
+    backgroundColor: colors.accentCream,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  logoContainer: {
+    position: 'absolute',
+    top: spacing.xxl,
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: 200,
+    height: 60,
+  },
+  logoMain: {
+    ...typography.logo,
+    marginBottom: spacing.xs,
+  },
+  logoSub: {
+    fontSize: 11,
+    fontFamily: 'System',
+    fontWeight: '400',
+    color: colors.textPrimary,
+    letterSpacing: 3,
+    textAlign: 'center',
+  },
+  greeting: {
+    ...typography.body1,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  userName: {
+    ...typography.h1,
+    marginBottom: spacing.xxl,
+  },
+  heroImageContainer: {
+    width: width * 0.9,
+    height: width * 1.2,
+    marginVertical: spacing.xxxl,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+  },
+  heroImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.accentCream,
+  },
+  heroImageText: {
+    fontSize: 120,
+  },
+  startButtonContainer: {
+    position: 'absolute',
+    bottom: spacing.xxxl,
+  },
+  startButton: {
+    paddingHorizontal: spacing.xxxl * 1.5,
+    paddingVertical: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.textLight,
+    borderRadius: borderRadius.round,
+    backgroundColor: 'transparent',
+  },
+  startButtonText: {
+    ...typography.button,
+  },
+  promoSection: {
+    backgroundColor: colors.accentBeige,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.xl,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xxl,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  promoContent: {
+    flex: 1,
+  },
+  promoTitle: {
+    ...typography.h1,
+    marginBottom: spacing.xs,
+  },
+  promoSubtitle: {
+    ...typography.caption,
+    letterSpacing: 1,
+  },
+  promoImageContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  promoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  promoImageText: {
+    fontSize: 80,
+  },
+  section: {
+    marginTop: spacing.xxxl,
+  },
+  sectionTitle: {
+    ...typography.h3,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    letterSpacing: 1,
+  },
+  horizontalScroll: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.lg,
+  },
+  itemCard: {
+    width: width * 0.45,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    ...shadows.small,
+    overflow: 'hidden',
+  },
+  itemImageContainer: {
+    width: '100%',
+    height: width * 0.45,
+    backgroundColor: colors.accentCream,
+  },
+  itemImage: {
+    width: '100%',
+    height: '100%',
+  },
+  itemImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemImageText: {
+    fontSize: 60,
+  },
+  itemInfo: {
+    padding: spacing.md,
+  },
+  itemName: {
+    ...typography.body1,
+    fontFamily: 'Montserrat-SemiBold',
+    marginBottom: spacing.xs,
+    minHeight: 44,
+  },
+  itemPrice: {
+    ...typography.price,
+  },
+  bottomSpacing: {
+    height: spacing.xxxl,
+  },
+});
+
+export default HomeScreen;

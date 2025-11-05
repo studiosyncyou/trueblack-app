@@ -1,11 +1,10 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { StatusBar, LogBox } from 'react-native';
 import { Provider } from 'react-redux';
 import { NavigationContainer } from '@react-navigation/native';
 import { PaperProvider } from 'react-native-paper';
-import store from './src/store/store'; // UPDATED: Changed from './src/redux/store'
+import store from './src/store/store';
 import AppNavigator from './src/navigation/AppNavigator';
-import { theme } from './src/config/theme';
 
 // Ignore specific warnings
 LogBox.ignoreLogs([
@@ -15,9 +14,9 @@ LogBox.ignoreLogs([
 function App() {
   return (
     <Provider store={store}>
-      <PaperProvider theme={theme}>
+      <PaperProvider>
         <NavigationContainer>
-          <StatusBar barStyle="light-content" backgroundColor="#000000" />
+          <StatusBar barStyle="dark-content" backgroundColor="#F5F0E8" />
           <AppNavigator />
         </NavigationContainer>
       </PaperProvider>

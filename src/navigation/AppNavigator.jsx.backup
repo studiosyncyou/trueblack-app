@@ -1,0 +1,106 @@
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Icon from 'react-native-vector-icons/Ionicons';
+import { colors } from '../config/theme';
+
+// Import screens
+import SplashScreen from '../screens/splash/SplashScreen';
+import LocationLoginScreen from '../screens/auth/LocationLoginScreen';
+import HomeScreen from '../screens/home/HomeScreen';
+import MenuScreen from '../screens/menu/MenuScreen';
+import ItemDetailModal from '../screens/menu/ItemDetailModal';
+import SpacesScreen from '../screens/spaces/SpacesScreen';
+import SpaceDetailScreen from '../screens/spaces/SpaceDetailScreen';
+import SearchScreen from '../screens/search/SearchScreen';
+import ProfileScreen from '../screens/profile/ProfileScreen';
+import CartScreen from '../screens/cart/CartScreen';
+import CheckoutScreen from '../screens/checkout/CheckoutScreen';
+import OrderConfirmationScreen from '../screens/orders/OrderConfirmationScreen';
+import OrdersHistoryScreen from '../screens/orders/OrdersHistoryScreen';
+
+const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
+
+// Bottom Tab Navigator
+const MainTabs = () => {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Menu') {
+            iconName = focused ? 'restaurant' : 'restaurant-outline';
+          } else if (route.name === 'Spaces') {
+            iconName = focused ? 'cafe' : 'cafe-outline';
+          } else if (route.name === 'Search') {
+            iconName = focused ? 'search' : 'search-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Icon name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: colors.textPrimary,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontFamily: 'Montserrat-Medium',
+        },
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Menu" component={MenuScreen} />
+      <Tab.Screen name="Spaces" component={SpacesScreen} />
+      <Tab.Screen name="Search" component={SearchScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+    </Tab.Navigator>
+  );
+};
+
+// Main App Navigator
+const AppNavigator = () => {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          cardStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen name="Splash" component={SplashScreen} />
+        <Stack.Screen name="LocationLogin" component={LocationLoginScreen} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen
+          name="ItemDetail"
+          component={ItemDetailModal}
+          options={{
+            presentation: 'modal',
+            cardStyle: { backgroundColor: 'transparent' },
+            cardOverlayEnabled: true,
+          }}
+        />
+        <Stack.Screen name="SpaceDetail" component={SpaceDetailScreen} />
+        <Stack.Screen name="Cart" component={CartScreen} />
+        <Stack.Screen name="Checkout" component={CheckoutScreen} />
+        <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
+        <Stack.Screen name="OrdersHistory" component={OrdersHistoryScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
+
+export default AppNavigator;
