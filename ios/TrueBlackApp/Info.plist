@@ -58,6 +58,8 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
 	<key>NSLocationWhenInUseUsageDescription</key>
+<string>TRUE BLACK needs your location to show nearby stores and enable dine-in service.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We need your location to show the nearest TRUE BLACK store.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>We need your location to show the nearest TRUE BLACK store.</string>

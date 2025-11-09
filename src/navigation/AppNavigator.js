@@ -10,6 +10,7 @@ import LocationLoginScreen from '../screens/auth/LocationLoginScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import AnimatedTabBar from '../components/AnimatedTabBar';
 import MenuScreen from '../screens/menu/MenuScreen';
+import StoreSelectorScreen from '../screens/stores/StoreSelectorScreen';
 import ItemDetailModal from '../screens/menu/ItemDetailModal';
 import SpacesScreen from '../screens/spaces/SpacesScreen';
 import SpaceDetailScreen from '../screens/spaces/SpaceDetailScreen';
@@ -32,6 +33,11 @@ const MenuStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MenuMain" component={MenuScreen} />
+      <Stack.Screen 
+  name="StoreSelector" 
+  component={StoreSelectorScreen}
+  options={{ headerShown: false }}
+/>
     </Stack.Navigator>
   );
 };

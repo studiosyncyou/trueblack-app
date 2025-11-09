@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,30 +7,49 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { colors, spacing, borderRadius } from '../../config/theme';
-
-// Mock menu items for search
-const ALL_ITEMS = [
-  { id: 1, name: 'Espresso', category: 'ESPRESSO HOT', price: 250 },
-  { id: 2, name: 'Latte', category: 'ESPRESSO HOT', price: 250 },
-  { id: 3, name: 'Cappuccino', category: 'ESPRESSO HOT', price: 250 },
-  { id: 4, name: 'Spanish Latte', category: 'ESPRESSO HOT', price: 250 },
-  { id: 5, name: 'Cold Brew', category: 'COLD BREW', price: 300 },
-  { id: 6, name: 'Avocado Toast', category: 'SOURDOUGH TOAST', price: 350 },
-  { id: 7, name: 'Red Pepper Hummus Toast', category: 'SOURDOUGH TOAST', price: 250 },
-  { id: 8, name: 'Tiramisu', category: 'DESSERTS', price: 350 },
-  { id: 9, name: 'Croissant', category: 'PASTRIES', price: 150 },
-];
-
-const RECENT_SEARCHES = ['Latte', 'Avocado Toast', 'Cold Brew'];
-const POPULAR_SEARCHES = ['Espresso', 'Cappuccino', 'Croissant', 'Tiramisu'];
+import { colors, spacing, borderRadius, typography } from '../../config/theme';
+import { getMenuForStore, getAllCategories } from '../../data/storeMenus';
 
 const SearchScreen = ({ navigation }) => {
+  const selectedStore = useSelector((state) => state.location?.selectedStore);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [allMenuItems, setAllMenuItems] = useState([]);
+  const [recentSearches, setRecentSearches] = useState([
+    'Latte',
+    'Cold Brew',
+    'Croissant',
+  ]);
+
+  const CATEGORIES = getAllCategories();
+
+  // Load all menu items from selected store
+  useEffect(() => {
+    if (selectedStore) {
+      const storeMenu = getMenuForStore(selectedStore.id);
+      
+      const items = [];
+      Object.keys(storeMenu).forEach((categoryKey) => {
+        const categoryItems = storeMenu[categoryKey] || [];
+        const category = CATEGORIES.find((cat) => cat.key === categoryKey);
+        
+        categoryItems.forEach((item) => {
+          items.push({
+            ...item,
+            categoryKey: categoryKey,
+            categoryName: category?.name || categoryKey.toUpperCase(),
+          });
+        });
+      });
+      
+      setAllMenuItems(items);
+    }
+  }, [selectedStore]);
 
   const handleSearch = (query) => {
     setSearchQuery(query);
@@ -40,14 +59,23 @@ const SearchScreen = ({ navigation }) => {
       return;
     }
 
-    const results = ALL_ITEMS.filter((item) =>
+    const results = allMenuItems.filter((item) =>
       item.name.toLowerCase().includes(query.toLowerCase()) ||
-      item.category.toLowerCase().includes(query.toLowerCase())
+      item.categoryName.toLowerCase().includes(query.toLowerCase()) ||
+      (item.description && item.description.toLowerCase().includes(query.toLowerCase()))
     );
+    
     setSearchResults(results);
   };
 
   const handleSelectItem = (item) => {
+    // Add to recent searches
+    setRecentSearches((prev) => {
+      const updated = [item.name, ...prev.filter((s) => s !== item.name)];
+      return updated.slice(0, 5);
+    });
+
+    // Navigate to item detail
     navigation.navigate('ItemDetail', { item });
   };
 
@@ -56,13 +84,76 @@ const SearchScreen = ({ navigation }) => {
     handleSearch(query);
   };
 
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    handleSearch('');
+  };
+
+  const POPULAR_SEARCHES = [
+    'Espresso',
+    'Cappuccino',
+    'Latte',
+    'Cold Brew',
+    'Croissant',
+    'Tiramisu',
+  ];
+
+  const CATEGORY_BROWSE = [
+    { 
+      name: 'Coffee', 
+      icon: 'cafe', 
+      description: 'All coffee drinks',
+      categories: ['espresso_hot', 'espresso_iced', 'brews']
+    },
+    { 
+      name: 'Food', 
+      icon: 'restaurant', 
+      description: 'Savory dishes',
+      categoryKey: 'savoury' 
+    },
+    { 
+      name: 'Desserts', 
+      icon: 'ice-cream', 
+      description: 'Sweet treats',
+      categoryKey: 'sweet' 
+    },
+    { 
+      name: 'Marketplace', 
+      icon: 'cart', 
+      description: 'Coffee beans & merchandise',
+      navigate: 'Marketplace'
+    },
+  ];
+
+  const handleCategoryBrowse = (category) => {
+    if (category.navigate) {
+      // Navigate to specific screen (e.g., Marketplace)
+      navigation.navigate(category.navigate);
+    } else if (category.categoryKey) {
+      // Navigate to Menu and scroll to specific category
+      navigation.navigate('Menu', { 
+        scrollToCategory: category.categoryKey 
+      });
+    } else if (category.categories) {
+      // Navigate to first category in the group
+      navigation.navigate('Menu', { 
+        scrollToCategory: category.categories[0] 
+      });
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
       
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>SEARCH</Text>
+      </View>
+
       {/* Search Bar */}
-      <View style={styles.searchBar}>
-        <View style={styles.searchInputContainer}>
+      <View style={styles.searchBarContainer}>
+        <View style={styles.searchBar}>
           <Icon name="search" size={20} color={colors.textSecondary} />
           <TextInput
             style={styles.searchInput}
@@ -70,10 +161,9 @@ const SearchScreen = ({ navigation }) => {
             placeholderTextColor={colors.textTertiary}
             value={searchQuery}
             onChangeText={handleSearch}
-            autoFocus
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearch('')}>
+            <TouchableOpacity onPress={handleClearSearch}>
               <Icon name="close-circle" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
@@ -83,19 +173,31 @@ const SearchScreen = ({ navigation }) => {
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {searchQuery.trim() === '' ? (
           <>
+            {/* Store Info */}
+            {selectedStore && (
+              <View style={styles.storeInfo}>
+                <Icon name="location" size={16} color={colors.textSecondary} />
+                <Text style={styles.storeText}>
+                  {selectedStore.spaceName} - {selectedStore.area}
+                </Text>
+              </View>
+            )}
+
             {/* Recent Searches */}
-            {RECENT_SEARCHES.length > 0 && (
+            {recentSearches.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Recent Searches</Text>
                 <View style={styles.chipContainer}>
-                  {RECENT_SEARCHES.map((item, index) => (
+                  {recentSearches.map((item, index) => (
                     <TouchableOpacity
                       key={index}
                       style={styles.chip}
                       onPress={() => handleQuickSearch(item)}
+                      activeOpacity={0.7}
                     >
                       <Icon name="time-outline" size={16} color={colors.textSecondary} />
                       <Text style={styles.chipText}>{item}</Text>
@@ -114,6 +216,7 @@ const SearchScreen = ({ navigation }) => {
                     key={index}
                     style={styles.chip}
                     onPress={() => handleQuickSearch(item)}
+                    activeOpacity={0.7}
                   >
                     <Icon name="trending-up-outline" size={16} color={colors.textSecondary} />
                     <Text style={styles.chipText}>{item}</Text>
@@ -126,25 +229,24 @@ const SearchScreen = ({ navigation }) => {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Browse by Category</Text>
               <View style={styles.categoryList}>
-                {['Coffee', 'Food', 'Desserts', 'Marketplace'].map((category, index) => (
+                {CATEGORY_BROWSE.map((category, index) => (
                   <TouchableOpacity
                     key={index}
                     style={styles.categoryItem}
-                    onPress={() => navigation.navigate('Menu')}
+                    onPress={() => handleCategoryBrowse(category)}
+                    activeOpacity={0.7}
                   >
                     <View style={styles.categoryIcon}>
                       <Icon
-                        name={
-                          category === 'Coffee' ? 'cafe' :
-                          category === 'Food' ? 'restaurant' :
-                          category === 'Desserts' ? 'ice-cream' :
-                          'cart'
-                        }
+                        name={category.icon}
                         size={28}
                         color={colors.textPrimary}
                       />
                     </View>
-                    <Text style={styles.categoryText}>{category}</Text>
+                    <View style={styles.categoryTextContainer}>
+                      <Text style={styles.categoryText}>{category.name}</Text>
+                      <Text style={styles.categoryDescription}>{category.description}</Text>
+                    </View>
                     <Icon name="chevron-forward" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 ))}
@@ -171,15 +273,53 @@ const SearchScreen = ({ navigation }) => {
                   key={item.id}
                   style={styles.resultItem}
                   onPress={() => handleSelectItem(item)}
+                  activeOpacity={0.9}
                 >
-                  <View style={styles.resultImage}>
-                    <Text style={styles.resultEmoji}>☕</Text>
+                  <View style={styles.resultImageContainer}>
+                    {item.image ? (
+                      <Image
+                        source={item.image}
+                        style={styles.resultImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.resultImagePlaceholder}>
+                        <Text style={styles.resultEmoji}>
+                          {item.categoryKey?.includes('espresso') || item.categoryKey?.includes('brew') 
+                            ? '☕' 
+                            : item.categoryKey?.includes('sweet') 
+                            ? '🍰' 
+                            : '🍽️'}
+                        </Text>
+                      </View>
+                    )}
                   </View>
+                  
                   <View style={styles.resultDetails}>
-                    <Text style={styles.resultName}>{item.name}</Text>
-                    <Text style={styles.resultCategory}>{item.category}</Text>
+                    <View style={styles.resultHeader}>
+                      {item.isVeg !== undefined && (
+                        <View style={styles.vegBadge}>
+                          <View 
+                            style={[
+                              styles.vegDot, 
+                              !item.isVeg && { backgroundColor: colors.error }
+                            ]} 
+                          />
+                        </View>
+                      )}
+                      <Text style={styles.resultName} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                    </View>
+                    <Text style={styles.resultCategory}>{item.categoryName}</Text>
+                    {item.description && (
+                      <Text style={styles.resultDescription} numberOfLines={2}>
+                        {item.description}
+                      </Text>
+                    )}
                     <Text style={styles.resultPrice}>₹{item.price}</Text>
                   </View>
+                  
                   <Icon name="chevron-forward" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               ))
@@ -198,14 +338,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  searchBar: {
+  header: {
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  searchInputContainer: {
+  headerTitle: {
+    ...typography.h1,
+    fontSize: 28,
+  },
+  searchBarContainer: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.background,
@@ -218,18 +369,31 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     fontSize: 15,
     color: colors.textPrimary,
+    fontFamily: 'Montserrat-Regular',
   },
   container: {
     flex: 1,
+  },
+  storeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  storeText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: 'Montserrat-SemiBold',
   },
   section: {
     marginTop: spacing.xl,
     paddingHorizontal: spacing.lg,
   },
   sectionTitle: {
+    ...typography.h3,
     fontSize: 18,
-    fontWeight: '700',
-    color: colors.textPrimary,
     marginBottom: spacing.md,
   },
   chipContainer: {
@@ -251,9 +415,10 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 14,
     color: colors.textPrimary,
+    fontFamily: 'Montserrat-Regular',
   },
   categoryList: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   categoryItem: {
     flexDirection: 'row',
@@ -271,11 +436,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  categoryText: {
+  categoryTextContainer: {
     flex: 1,
+  },
+  categoryText: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.textPrimary,
+    fontFamily: 'Montserrat-SemiBold',
+    marginBottom: 2,
+  },
+  categoryDescription: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: 'Montserrat-Regular',
   },
   noResults: {
     alignItems: 'center',
@@ -287,53 +461,96 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginTop: spacing.xl,
     marginBottom: spacing.xs,
+    fontFamily: 'Montserrat-Bold',
   },
   noResultsSubtitle: {
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+    fontFamily: 'Montserrat-Regular',
   },
   resultItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    padding: spacing.lg,
+    padding: spacing.md,
     borderRadius: borderRadius.md,
     marginBottom: spacing.sm,
     gap: spacing.md,
   },
-  resultImage: {
-    width: 60,
-    height: 60,
-    backgroundColor: colors.background,
+  resultImageContainer: {
+    width: 80,
+    height: 80,
+    backgroundColor: colors.accentCream,
     borderRadius: borderRadius.md,
+    overflow: 'hidden',
+  },
+  resultImage: {
+    width: '100%',
+    height: '100%',
+  },
+  resultImagePlaceholder: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
   resultEmoji: {
-    fontSize: 28,
+    fontSize: 32,
   },
   resultDetails: {
     flex: 1,
   },
+  resultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  vegBadge: {
+    width: 14,
+    height: 14,
+    borderWidth: 1.5,
+    borderColor: colors.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vegDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.success,
+  },
   resultName: {
+    flex: 1,
     fontSize: 16,
     fontWeight: '600',
     color: colors.textPrimary,
-    marginBottom: spacing.xs,
+    fontFamily: 'Montserrat-SemiBold',
   },
   resultCategory: {
     fontSize: 12,
     color: colors.textSecondary,
     marginBottom: spacing.xs,
+    fontFamily: 'Montserrat-Regular',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  resultDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+    fontFamily: 'Montserrat-Regular',
+    lineHeight: 18,
   },
   resultPrice: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.textPrimary,
+    fontFamily: 'Montserrat-SemiBold',
   },
   bottomSpacing: {
-    height: spacing.xxxl,
+    height: spacing.xxxl * 2,
   },
 });
 

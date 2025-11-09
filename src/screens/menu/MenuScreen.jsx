@@ -8,159 +8,403 @@ import {
   StatusBar,
   Dimensions,
   Image,
+  Alert,
+  TextInput,
 } from 'react-native';
 import { Text, Modal, Portal } from 'react-native-paper';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { colors, spacing, borderRadius, shadows, typography } from '../../config/theme';
+import { addToCart, updateQuantity } from '../../store/slices/cartSlice';
+import { setSelectedStore } from '../../store/slices/locationSlice';
+import ItemDetailModal from '../../components/menu/ItemDetailModal';
+import QuantityCounter from '../../components/common/QuantityCounter';
+import { colors, spacing, typography } from '../../config/theme';
+import { getMenuForStore, getAllCategories, STORES } from '../../data/storeMenus';
 
 const { width } = Dimensions.get('window');
 
-const CATEGORIES = [
-  { id: 1, name: 'ESPRESSO HOT', key: 'espresso_hot' },
-  { id: 2, name: 'ESPRESSO COLD', key: 'espresso_cold' },
-  { id: 3, name: 'COLD BREW', key: 'cold_brew' },
-  { id: 4, name: 'SOURDOUGH TOAST', key: 'sourdough_toast' },
-  { id: 5, name: 'DESSERTS', key: 'desserts' },
-];
+const MenuScreen = ({ navigation, route }) => {
+  const dispatch = useDispatch();
+  const selectedStore = useSelector((state) => state.location?.selectedStore);
+  const userLocation = useSelector((state) => state.location?.currentLocation);
+  const cartItems = useSelector((state) => state.cart?.items || []);
+  const cartTotal = useSelector((state) => state.cart?.totalItems || 0);
 
-const MENU_ITEMS = {
-  espresso_hot: [
-    { id: 1, name: 'Espresso', description: 'Classic Italian espresso', price: 250, isVeg: true },
-    { id: 2, name: 'Latte Hot', description: 'Smooth espresso with steamed milk', price: 250, isVeg: true },
-    { id: 3, name: 'Cappuccino', description: 'Equal parts espresso, steamed milk, and foam', price: 250, isVeg: true },
-    { id: 4, name: 'Spanish Latte', description: 'Sweet and creamy with condensed milk', price: 250, isVeg: true },
-  ],
-  espresso_cold: [
-    { id: 5, name: 'Iced Latte', description: 'Cold espresso with milk', price: 300, isVeg: true },
-    { id: 6, name: 'Iced Mocha', description: 'Espresso with chocolate and cold milk', price: 350, isVeg: true },
-  ],
-  cold_brew: [
-    { id: 7, name: 'Cold Brew', description: 'Smooth, cold-steeped coffee', price: 300, isVeg: true },
-    { id: 8, name: 'Cold Brew Latte', description: 'Cold brew with creamy milk', price: 350, isVeg: true },
-  ],
-  sourdough_toast: [
-    { id: 9, name: 'Avocado Toast', description: 'Fresh avocado on sourdough', price: 350, isVeg: true },
-    { id: 10, name: 'Red Pepper Hummus Toast', description: 'Homemade hummus with peppers', price: 250, isVeg: true },
-  ],
-  desserts: [
-    { id: 11, name: 'Tiramisu', description: 'Classic Italian dessert', price: 350, isVeg: true },
-    { id: 12, name: 'Croissant', description: 'Buttery, flaky pastry', price: 150, isVeg: true },
-  ],
-};
-
-const MenuScreen = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState('espresso_hot');
-  const [vegFilter, setVegFilter] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [itemModalVisible, setItemModalVisible] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [menuModalVisible, setMenuModalVisible] = useState(false);
+  const [vegFilter, setVegFilter] = useState(false);
+  const [menuItems, setMenuItems] = useState({});
   const [imageError, setImageError] = useState(false);
+  const [nearestStore, setNearestStore] = useState(null);
+  const [storeDistance, setStoreDistance] = useState(null);
+  const [hasSetNearestStore, setHasSetNearestStore] = useState(false);
   
-  // Get cart items count
-  const cartItems = useSelector((state) => state.cart?.totalItems || 0);
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   
   const scrollViewRef = useRef(null);
+  const categoryScrollRef = useRef(null);
   const categoryRefs = useRef({});
+  const categoryPositions = useRef({});
+  const categoryTabRefs = useRef({});
+  const isScrollingProgrammatically = useRef(false);
+  const searchInputRef = useRef(null);
 
-  const getItemImage = () => {
-    try {
-      return require('../../assets/images/item-default.jpg');
-    } catch (e) {
-      return null;
+  const CATEGORIES = getAllCategories();
+
+  // Calculate distance between two coordinates
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const toRad = (degrees) => {
+    return degrees * (Math.PI / 180);
+  };
+
+  // Find and SET nearest store on mount
+  useEffect(() => {
+    if (userLocation?.latitude && userLocation?.longitude && !hasSetNearestStore) {
+      const storesWithDistance = STORES.map((store) => {
+        const distance = calculateDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          store.latitude,
+          store.longitude
+        );
+        return { ...store, distance };
+      });
+
+      storesWithDistance.sort((a, b) => a.distance - b.distance);
+      const nearest = storesWithDistance[0];
+
+      setNearestStore(nearest);
+      setStoreDistance(nearest.distance);
+      dispatch(setSelectedStore(nearest));
+      setHasSetNearestStore(true);
+    } else if (selectedStore && !nearestStore) {
+      setNearestStore(selectedStore);
+      setStoreDistance(null);
+    }
+  }, [userLocation, hasSetNearestStore]);
+
+  // Load menu when store changes
+  useEffect(() => {
+    const storeToUse = selectedStore || nearestStore || STORES[0];
+    const storeMenu = getMenuForStore(storeToUse.id);
+    setMenuItems(storeMenu);
+  }, [selectedStore, nearestStore]);
+
+  // Get store display text with distance
+  const getStoreDisplayText = () => {
+    const store = selectedStore || nearestStore;
+    if (!store) return 'Select Store';
+
+    if (userLocation?.latitude && userLocation?.longitude) {
+      const distanceToSelected = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        store.latitude,
+        store.longitude
+      );
+      return `${store.spaceName} - ${store.area} ${distanceToSelected.toFixed(1)}km away`;
+    } else {
+      return `${store.spaceName} - ${store.area}`;
     }
   };
 
-  const handleCategoryPress = (categoryKey) => {
-    setSelectedCategory(categoryKey);
-    const categoryRef = categoryRefs.current[categoryKey];
-    if (categoryRef && scrollViewRef.current) {
-      categoryRef.measureLayout(
-        scrollViewRef.current.getInnerViewNode(),
-        (x, y) => {
-          scrollViewRef.current.scrollTo({ y: y - 100, animated: true });
+  // Handle store selection with farther store warning
+  const handleLocationPress = () => {
+    navigation.navigate('StoreSelector', {
+      onStoreSelect: (store) => {
+        if (nearestStore && userLocation && store.id !== nearestStore.id) {
+          const distanceToSelected = calculateDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            store.latitude,
+            store.longitude
+          );
+          const distanceToNearest = calculateDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            nearestStore.latitude,
+            nearestStore.longitude
+          );
+
+          if (distanceToSelected > distanceToNearest) {
+            Alert.alert(
+              'Farther Location',
+              `You are selecting ${store.spaceName} (${distanceToSelected.toFixed(1)}km away) instead of the nearest store ${nearestStore.spaceName} (${distanceToNearest.toFixed(1)}km away).\n\nDo you want to continue?`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Yes, Continue',
+                  onPress: () => dispatch(setSelectedStore(store)),
+                },
+              ]
+            );
+          } else {
+            dispatch(setSelectedStore(store));
+          }
+        } else {
+          dispatch(setSelectedStore(store));
         }
+      },
+    });
+  };
+
+  const handleCategoryPress = (categoryKey) => {
+    isScrollingProgrammatically.current = true;
+    setSelectedCategory(categoryKey);
+    scrollCategoryTabIntoView(categoryKey);
+    
+    const position = categoryPositions.current[categoryKey];
+    
+    if (position !== undefined && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ 
+        y: position - 120, 
+        animated: true 
+      });
+      
+      setTimeout(() => {
+        isScrollingProgrammatically.current = false;
+      }, 500);
+    } else {
+      isScrollingProgrammatically.current = false;
+    }
+  };
+
+  const handleScroll = (event) => {
+    if (isScrollingProgrammatically.current) return;
+
+    const scrollY = event.nativeEvent.contentOffset.y;
+    const offset = 150;
+
+    let currentCategory = selectedCategory;
+    
+    CATEGORIES.forEach((category) => {
+      const position = categoryPositions.current[category.key];
+      if (position !== undefined && scrollY + offset >= position) {
+        currentCategory = category.key;
+      }
+    });
+
+    if (currentCategory !== selectedCategory) {
+      setSelectedCategory(currentCategory);
+      scrollCategoryTabIntoView(currentCategory);
+    }
+  };
+
+  const scrollCategoryTabIntoView = (categoryKey) => {
+    const tabRef = categoryTabRefs.current[categoryKey];
+    if (tabRef && categoryScrollRef.current) {
+      tabRef.measureLayout(
+        categoryScrollRef.current,
+        (x, y, width, height) => {
+          const scrollViewWidth = Dimensions.get('window').width;
+          const scrollToX = x - (scrollViewWidth / 2) + (width / 2);
+          
+          categoryScrollRef.current.scrollTo({
+            x: Math.max(0, scrollToX),
+            animated: true,
+          });
+        },
+        () => {}
       );
     }
   };
 
-  const handleAddToCart = (item) => {
-    navigation.navigate('ItemDetail', { item });
+  const onCategoryLayout = (categoryKey, event) => {
+    const { y } = event.nativeEvent.layout;
+    categoryPositions.current[categoryKey] = y;
   };
 
-  const filteredItems = Object.keys(MENU_ITEMS).reduce((acc, key) => {
-    acc[key] = vegFilter
-      ? MENU_ITEMS[key].filter((item) => item.isVeg)
-      : MENU_ITEMS[key];
-    return acc;
-  }, {});
+  const handleItemPress = (item) => {
+    setSelectedItem(item);
+    setItemModalVisible(true);
+  };
+
+  const getCartQuantity = (itemId) => {
+    const item = cartItems.find(cartItem => cartItem.id === itemId);
+    return item ? item.quantity : 0;
+  };
+
+  const handleAddToCart = (item) => {
+    dispatch(
+      addToCart({
+        ...item,
+        storeId: selectedStore?.id || nearestStore?.id || 1,
+        storeName: selectedStore?.name || nearestStore?.name || 'True Black',
+      })
+    );
+  };
+
+  const handleUpdateQuantity = (itemId, newQuantity) => {
+    const item = cartItems.find(cartItem => cartItem.id === itemId);
+    if (item) {
+      dispatch(updateQuantity({ cartId: item.cartId, quantity: newQuantity }));
+    }
+  };
+
+  const handleProceedToCart = () => {
+    navigation.navigate('Cart');
+  };
+
+  // Filter items based on search query
+  const getFilteredItems = () => {
+    let filtered = Object.keys(menuItems).reduce((acc, key) => {
+      const items = menuItems[key] || [];
+      acc[key] = vegFilter ? items.filter((item) => item.isVeg) : items;
+      return acc;
+    }, {});
+
+    // Apply search filter
+    if (searchQuery.trim() !== '') {
+      const query = searchQuery.toLowerCase();
+      filtered = Object.keys(filtered).reduce((acc, key) => {
+        const items = filtered[key] || [];
+        const matchedItems = items.filter((item) =>
+          item.name.toLowerCase().includes(query) ||
+          (item.description && item.description.toLowerCase().includes(query))
+        );
+        if (matchedItems.length > 0) {
+          acc[key] = matchedItems;
+        }
+        return acc;
+      }, {});
+    }
+
+    return filtered;
+  };
+
+  const filteredItems = getFilteredItems();
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    if (searchInputRef.current) {
+      searchInputRef.current.blur();
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
       
       {/* Fixed Header */}
       <View style={styles.header}>
+        {/* Top Row: Location + Icons */}
         <View style={styles.headerTop}>
-          <View style={styles.locationSection}>
-            <Icon name="location" size={20} color={colors.textPrimary} />
-            <Text style={styles.locationText}>Kompally</Text>
-            <Icon name="chevron-down" size={20} color={colors.textPrimary} />
-          </View>
+          <TouchableOpacity 
+            style={styles.locationSection}
+            onPress={handleLocationPress}
+            activeOpacity={0.7}
+          >
+            <Icon name="location" size={18} color={colors.textPrimary} />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {getStoreDisplayText()}
+            </Text>
+            <Icon name="chevron-down" size={18} color={colors.textPrimary} />
+          </TouchableOpacity>
+
           <View style={styles.headerIcons}>
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => navigation.navigate('Search')}
-            >
-              <Icon name="search" size={24} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.iconButton}
               onPress={() => setFilterModalVisible(true)}
+              activeOpacity={0.7}
             >
               <Icon name="options" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
-            {/* CART BUTTON */}
+            
             <TouchableOpacity
               style={styles.cartButton}
               onPress={() => navigation.navigate('Cart')}
+              activeOpacity={0.7}
             >
               <Icon name="cart-outline" size={24} color={colors.textPrimary} />
-              {cartItems > 0 && (
+              {cartTotal > 0 && (
                 <View style={styles.cartBadge}>
-                  <Text style={styles.cartBadgeText}>{cartItems}</Text>
+                  <Text style={styles.cartBadgeText}>{cartTotal}</Text>
                 </View>
               )}
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Sticky Category Tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryTabs}
-          contentContainerStyle={styles.categoryTabsContent}
-        >
-          {CATEGORIES.map((category) => (
-            <TouchableOpacity
-              key={category.id}
-              style={[
-                styles.categoryTab,
-                selectedCategory === category.key && styles.categoryTabActive,
-              ]}
-              onPress={() => handleCategoryPress(category.key)}
-            >
-              <Text
+        {/* Search Bar */}
+        <View style={styles.searchBarContainer}>
+          <View style={styles.searchBar}>
+            <Icon name="search" size={20} color={colors.textSecondary} />
+            <TextInput
+              ref={searchInputRef}
+              style={styles.searchInput}
+              placeholder="Search menu items..."
+              placeholderTextColor={colors.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={handleClearSearch}>
+                <Icon name="close-circle" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Category Tabs - Only show if not searching */}
+        {searchQuery.trim() === '' && (
+          <ScrollView
+            ref={categoryScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.categoryTabs}
+            contentContainerStyle={styles.categoryTabsContent}
+          >
+            {CATEGORIES.map((category) => (
+              <TouchableOpacity
+                key={category.id}
+                ref={(ref) => (categoryTabRefs.current[category.key] = ref)}
                 style={[
-                  styles.categoryTabText,
-                  selectedCategory === category.key && styles.categoryTabTextActive,
+                  styles.categoryTab,
+                  selectedCategory === category.key && styles.categoryTabActive,
                 ]}
+                onPress={() => handleCategoryPress(category.key)}
+                activeOpacity={0.7}
               >
-                {category.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <Text
+                  style={[
+                    styles.categoryTabText,
+                    selectedCategory === category.key && styles.categoryTabTextActive,
+                  ]}
+                >
+                  {category.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {/* Search Results Count */}
+        {searchQuery.trim() !== '' && (
+          <View style={styles.searchResultsHeader}>
+            <Text style={styles.searchResultsText}>
+              {Object.values(filteredItems).flat().length} result{Object.values(filteredItems).flat().length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Menu Items */}
@@ -168,72 +412,139 @@ const MenuScreen = ({ navigation }) => {
         ref={scrollViewRef}
         style={styles.container}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
-        {CATEGORIES.map((category) => {
-          const items = filteredItems[category.key];
-          if (!items || items.length === 0) return null;
+        {Object.keys(filteredItems).length === 0 ? (
+          <View style={styles.noResults}>
+            <Icon name="search-outline" size={60} color={colors.textTertiary} />
+            <Text style={styles.noResultsTitle}>No items found</Text>
+            <Text style={styles.noResultsSubtitle}>
+              Try searching with different keywords
+            </Text>
+          </View>
+        ) : (
+          CATEGORIES.map((category) => {
+            const items = filteredItems[category.key] || [];
+            if (items.length === 0) return null;
 
-          return (
-            <View
-              key={category.id}
-              ref={(ref) => (categoryRefs.current[category.key] = ref)}
-              style={styles.categorySection}
-            >
-              <Text style={styles.categoryTitle}>{category.name}</Text>
-              {items.map((item) => (
-                <View key={item.id} style={styles.menuItem}>
-                  <View style={styles.menuItemImageContainer}>
-                    {getItemImage() && !imageError ? (
-                      <Image
-                        source={getItemImage()}
-                        style={styles.menuItemImage}
-                        resizeMode="cover"
-                        onError={() => setImageError(true)}
-                      />
-                    ) : (
-                      <View style={styles.menuItemImagePlaceholder}>
-                        <Text style={styles.menuItemImageText}>☕</Text>
-                      </View>
-                    )}
+            return (
+              <View
+                key={category.id}
+                ref={(ref) => (categoryRefs.current[category.key] = ref)}
+                onLayout={(event) => onCategoryLayout(category.key, event)}
+                style={styles.categorySection}
+              >
+                {/* Category Title - Only show if not searching */}
+                {searchQuery.trim() === '' && (
+                  <View style={styles.categoryHeader}>
+                    <Text style={styles.categoryHeaderText}>{category.name}</Text>
                   </View>
+                )}
 
-                  <View style={styles.menuItemDetails}>
-                    <View style={styles.menuItemHeader}>
-                      <Text style={styles.menuItemName}>{item.name}</Text>
-                      {item.isVeg && (
-                        <View style={styles.vegBadge}>
-                          <View style={styles.vegDot} />
+                {items.map((item) => {
+                  const quantity = getCartQuantity(item.id);
+
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.menuItem}
+                      onPress={() => handleItemPress(item)}
+                      activeOpacity={0.9}
+                    >
+                      {/* Image Section */}
+                      <View style={styles.imageSection}>
+                        <View style={styles.imageContainer}>
+                          {item.image ? (
+                            <Image
+                              source={item.image}
+                              style={styles.itemImage}
+                              resizeMode="cover"
+                              onError={() => setImageError(true)}
+                            />
+                          ) : (
+                            <View style={styles.imagePlaceholder}>
+                              <Text style={styles.imagePlaceholderText}>
+                                {category.key.includes('coffee') || category.key.includes('espresso') || category.key.includes('brew') ? '☕' : '🍽️'}
+                              </Text>
+                            </View>
+                          )}
+                          
+                          {/* Button Overlay */}
+                          <View style={styles.buttonOverlay}>
+                            {quantity > 0 ? (
+                              <View style={styles.quantityOverlay}>
+                                <QuantityCounter
+                                  quantity={quantity}
+                                  onIncrement={() => handleUpdateQuantity(item.id, quantity + 1)}
+                                  onDecrement={() => handleUpdateQuantity(item.id, quantity - 1)}
+                                  size="small"
+                                />
+                              </View>
+                            ) : (
+                              <TouchableOpacity
+                                style={styles.addButton}
+                                onPress={() => handleAddToCart(item)}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={styles.addButtonText}>ADD</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
                         </View>
-                      )}
-                    </View>
-                    <Text style={styles.menuItemDescription} numberOfLines={2}>
-                      {item.description}
-                    </Text>
-                    <Text style={styles.menuItemPrice}>₹{item.price}</Text>
-                  </View>
+                      </View>
 
-                  <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => handleAddToCart(item)}
-                  >
-                    <Text style={styles.addButtonText}>ADD</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          );
-        })}
+                      {/* Details Section */}
+                      <View style={styles.detailsSection}>
+                        <View style={styles.firstLine}>
+                          <View style={styles.nameContainer}>
+                            {item.isVeg !== undefined && (
+                              <View style={styles.vegBadge}>
+                                <View 
+                                  style={[
+                                    styles.vegDot, 
+                                    !item.isVeg && { backgroundColor: colors.error }
+                                  ]} 
+                                />
+                              </View>
+                            )}
+                            <Text style={styles.itemName} numberOfLines={2}>
+                              {item.name}
+                            </Text>
+                          </View>
+                          <Text style={styles.itemPrice}>₹{item.price}</Text>
+                        </View>
+                        <Text style={styles.itemDescription} numberOfLines={3}>
+                          {item.description}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            );
+          })
+        )}
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Floating Menu Button */}
-      <TouchableOpacity
-        style={styles.menuButton}
-        onPress={() => setMenuModalVisible(true)}
-      >
-        <Icon name="menu" size={24} color={colors.textLight} />
-      </TouchableOpacity>
+      {/* View Cart Button */}
+      {cartTotal > 0 && (
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={styles.viewCartButton}
+            onPress={handleProceedToCart}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.itemsCount}>{cartTotal} item{cartTotal !== 1 ? 's' : ''}</Text>
+            <View style={styles.viewCartRight}>
+              <Text style={styles.viewCartText}>VIEW CART</Text>
+              <Icon name="arrow-forward" size={20} color={colors.textLight} />
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Filter Modal */}
       <Portal>
@@ -242,13 +553,14 @@ const MenuScreen = ({ navigation }) => {
           onDismiss={() => setFilterModalVisible(false)}
           contentContainerStyle={styles.filterModal}
         >
-          <Text style={styles.filterModalTitle}>Filter</Text>
+          <Text style={styles.filterModalTitle}>FILTERS</Text>
           <TouchableOpacity
             style={styles.filterOption}
             onPress={() => {
               setVegFilter(!vegFilter);
               setFilterModalVisible(false);
             }}
+            activeOpacity={0.7}
           >
             <Icon
               name={vegFilter ? 'checkbox' : 'square-outline'}
@@ -260,35 +572,12 @@ const MenuScreen = ({ navigation }) => {
         </Modal>
       </Portal>
 
-      {/* Menu Sidebar Modal */}
-      <Portal>
-        <Modal
-          visible={menuModalVisible}
-          onDismiss={() => setMenuModalVisible(false)}
-          contentContainerStyle={styles.menuModal}
-        >
-          <Text style={styles.menuModalTitle}>Categories</Text>
-          {CATEGORIES.map((category) => (
-            <TouchableOpacity
-              key={category.id}
-              style={styles.menuModalItem}
-              onPress={() => {
-                handleCategoryPress(category.key);
-                setMenuModalVisible(false);
-              }}
-            >
-              <Text
-                style={[
-                  styles.menuModalItemText,
-                  selectedCategory === category.key && styles.menuModalItemTextActive,
-                ]}
-              >
-                {category.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </Modal>
-      </Portal>
+      {/* Item Detail Modal */}
+      <ItemDetailModal
+        visible={itemModalVisible}
+        item={selectedItem}
+        onClose={() => setItemModalVisible(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -313,55 +602,88 @@ const styles = StyleSheet.create({
   locationSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
+    flex: 1,
+    marginRight: spacing.md,
   },
   locationText: {
-    ...typography.body1,
-    fontFamily: 'Montserrat-Medium',
+    ...typography.body2,
+    fontFamily: 'Montserrat-SemiBold',
+    fontSize: 12,
+    flex: 1,
   },
   headerIcons: {
     flexDirection: 'row',
     gap: spacing.md,
+    alignItems: 'center',
   },
   iconButton: {
     padding: spacing.sm,
   },
-  // CART BUTTON STYLES
   cartButton: {
     position: 'relative',
     padding: spacing.sm,
   },
   cartBadge: {
     position: 'absolute',
-    top: 0,
-    right: 0,
+    top: 2,
+    right: 2,
     backgroundColor: colors.error,
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.surface,
+    paddingHorizontal: 4,
   },
   cartBadgeText: {
     color: colors.textLight,
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 11,
     fontFamily: 'Montserrat-Bold',
   },
+  searchBarContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    fontSize: 15,
+    color: colors.textPrimary,
+    fontFamily: 'Montserrat-Regular',
+  },
+  searchResultsHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  searchResultsText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontFamily: 'Montserrat-SemiBold',
+  },
   categoryTabs: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   categoryTabsContent: {
     paddingHorizontal: spacing.lg,
-    gap: spacing.md,
+    gap: spacing.lg,
     paddingVertical: spacing.md,
   },
   categoryTab: {
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
   },
   categoryTabActive: {
     borderBottomWidth: 2,
@@ -371,6 +693,7 @@ const styles = StyleSheet.create({
     ...typography.body2,
     fontFamily: 'Montserrat-Medium',
     color: colors.textSecondary,
+    letterSpacing: 0.5,
   },
   categoryTabTextActive: {
     color: colors.textPrimary,
@@ -378,63 +701,118 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+    backgroundColor: colors.surface,
   },
   categorySection: {
-    paddingVertical: spacing.xl,
+    backgroundColor: colors.surface,
   },
-  categoryTitle: {
-    ...typography.h3,
+  categoryHeader: {
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.background,
+  },
+  categoryHeaderText: {
+    ...typography.h3,
+    fontSize: 16,
+    letterSpacing: 1,
+  },
+  noResults: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxxxl * 2,
+  },
+  noResultsTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginTop: spacing.xl,
+    marginBottom: spacing.xs,
+    fontFamily: 'Montserrat-Bold',
+  },
+  noResultsSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontFamily: 'Montserrat-Regular',
   },
   menuItem: {
     flexDirection: 'row',
-    padding: spacing.lg,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    paddingHorizontal: spacing.lg,
   },
-  menuItemImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: borderRadius.md,
-    overflow: 'hidden',
-    marginRight: spacing.md,
+  imageSection: {
+    marginRight: spacing.lg,
+  },
+  imageContainer: {
+    width: 140,
+    height: 180,
     backgroundColor: colors.accentCream,
+    position: 'relative',
   },
-  menuItemImage: {
+  itemImage: {
     width: '100%',
     height: '100%',
   },
-  menuItemImagePlaceholder: {
+  imagePlaceholder: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  menuItemImageText: {
-    fontSize: 32,
+  imagePlaceholderText: {
+    fontSize: 48,
   },
-  menuItemDetails: {
+  buttonOverlay: {
+    position: 'absolute',
+    bottom: spacing.sm,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  addButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  addButtonText: {
+    ...typography.button,
+    color: colors.textLight,
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  quantityOverlay: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  detailsSection: {
     flex: 1,
-    marginRight: spacing.md,
+    justifyContent: 'flex-start',
+    paddingVertical: spacing.md,
   },
-  menuItemHeader: {
+  firstLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.sm,
+  },
+  nameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    flex: 1,
     gap: spacing.sm,
   },
-  menuItemName: {
+  itemName: {
     ...typography.body1,
     fontFamily: 'Montserrat-SemiBold',
+    fontSize: 15,
   },
   vegBadge: {
     width: 16,
     height: 16,
-    borderRadius: 2,
-    borderWidth: 1,
-    borderColor: '#2D7A3E',
+    borderWidth: 1.5,
+    borderColor: colors.success,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -442,44 +820,62 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#2D7A3E',
+    backgroundColor: colors.success,
   },
-  menuItemDescription: {
+  itemPrice: {
+    ...typography.body1,
+    fontFamily: 'Montserrat-SemiBold',
+    fontSize: 15,
+    marginLeft: spacing.sm,
+  },
+  itemDescription: {
     ...typography.body2,
-    marginBottom: spacing.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    fontSize: 13,
   },
-  menuItemPrice: {
-    ...typography.price,
-    fontFamily: 'Montserrat-Medium',
+  bottomSpacing: {
+    height: 150,
   },
-  addButton: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.textPrimary,
-    borderRadius: borderRadius.sm,
-    alignSelf: 'flex-start',
-    marginTop: spacing.sm,
-  },
-  addButtonText: {
-    ...typography.button,
-  },
-  menuButton: {
+  bottomBar: {
     position: 'absolute',
-    bottom: spacing.xxxl,
-    right: spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: 100,
+  },
+  viewCartButton: {
+    backgroundColor: colors.textPrimary,
+    flexDirection: 'row',
     alignItems: 'center',
-    ...shadows.medium,
+    justifyContent: 'space-between',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+  },
+  itemsCount: {
+    ...typography.button,
+    color: colors.textLight,
+    fontSize: 16,
+  },
+  viewCartRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  viewCartText: {
+    ...typography.button,
+    color: colors.textLight,
+    fontSize: 16,
   },
   filterModal: {
     backgroundColor: colors.surface,
     marginHorizontal: spacing.xxxl,
-    borderRadius: borderRadius.lg,
+    borderRadius: 8,
     padding: spacing.xl,
   },
   filterModalTitle: {
@@ -494,32 +890,6 @@ const styles = StyleSheet.create({
   },
   filterOptionText: {
     ...typography.body1,
-  },
-  menuModal: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.xxxl,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    maxHeight: '80%',
-  },
-  menuModalTitle: {
-    ...typography.h3,
-    marginBottom: spacing.lg,
-  },
-  menuModalItem: {
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  menuModalItemText: {
-    ...typography.body1,
-  },
-  menuModalItemTextActive: {
-    fontFamily: 'Montserrat-SemiBold',
-    color: colors.textPrimary,
-  },
-  bottomSpacing: {
-    height: 100,
   },
 });
 
